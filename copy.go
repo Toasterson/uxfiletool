@@ -16,12 +16,16 @@ type copyWorker struct {
 
 }
 
-func ExactCopy(src, dest string) error {
-	srcMode, err := os.Stat(src)
+func ExactCopy(srcFile, destDir string) error {
+	srcMode, err := os.Stat(srcFile)
+	srcStat := srcMode.Sys().(*syscall.Stat_t)
 	if err != nil {
 		return err
 	}
-	return copyFileExact(src, srcMode, dest)
+	if err := mirrorDirPath(srcFile, destDir); err != nil {
+		return err
+	}
+	return copyFileExact(srcFile, destDir, srcStat)
 }
 
 func ExactCopyPath(src, dest string, entries []string) error {
@@ -68,12 +72,38 @@ func (wk copyWorker)walkCopy(path string, info os.FileInfo, err error) error {
 		}
 	} else {
 		//We Have a regular File Copy it
-		return copyFileExact(path, info, dstpath)
+		srcStat := info.Sys().(*syscall.Stat_t)
+		return copyFileExact(path, dstpath, srcStat)
 	}
 	return nil
 }
 
-func copyFileExact(source string, srcInfo os.FileInfo, dest string) error {
+func copyTimes(target string, srcStat *syscall.Stat_t) error {
+	return os.Chtimes(target, time.Unix(int64(srcStat.Atim.Sec),int64(srcStat.Atim.Nsec)), time.Unix(int64(srcStat.Mtim.Sec),int64(srcStat.Mtim.Nsec)))
+}
+
+func mirrorDirPath(srcFile, destDir string) error {
+	pathList := strings.Split(srcFile, string(os.PathSeparator))
+	path := "/"
+	for _, p := range pathList {
+		filepath.Join(path, p)
+		dirMode, err := os.Stat(path)
+		if err != nil {
+			return err
+		}
+		dirStat := dirMode.Sys().(*syscall.Stat_t)
+		destPath := filepath.Join(destDir, path)
+		if err := os.Mkdir(destPath, dirMode.Mode()); err != nil {
+			return err
+		}
+		if err := os.Chown(destPath, int(dirStat.Uid), int(dirStat.Gid)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func copyFileExact(source, dest string, srcStat *syscall.Stat_t) error {
 	src, err := os.Open(source)
 	defer src.Close()
 	if err != nil{
@@ -84,20 +114,15 @@ func copyFileExact(source string, srcInfo os.FileInfo, dest string) error {
 	if err != nil{
 		return err
 	}
-	_, err = io.Copy(dst, src)
-	if err != nil{
+	if _, err = io.Copy(dst, src); err != nil{
 		return err
 	}
-	srcStat := srcInfo.Sys().(*syscall.Stat_t)
+
 	if err := syscall.Chmod(dest, srcStat.Mode); err != nil{
 		return err
 	}
-	if syscall.Chown(dest, int(srcStat.Uid), int(srcStat.Gid)); err != nil{
+	if err := syscall.Chown(dest, int(srcStat.Uid), int(srcStat.Gid)); err != nil{
 		return err
 	}
 	return nil
-}
-
-func copyTimes(target string, srcStat *syscall.Stat_t) error {
-	return os.Chtimes(target, time.Unix(int64(srcStat.Atim.Sec),int64(srcStat.Atim.Nsec)), time.Unix(int64(srcStat.Mtim.Sec),int64(srcStat.Mtim.Nsec)))
 }
