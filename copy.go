@@ -18,14 +18,14 @@ type copyWorker struct {
 
 func ExactCopy(srcFile, destDir string) error {
 	srcMode, err := os.Stat(srcFile)
-	srcStat := srcMode.Sys().(*syscall.Stat_t)
 	if err != nil {
 		return err
 	}
+	srcStat := srcMode.Sys().(*syscall.Stat_t)
 	if err := mirrorDirPath(srcFile, destDir); err != nil {
 		return err
 	}
-	return copyFileExact(srcFile, destDir, srcStat)
+	return copyFileExact(srcFile, filepath.Join(destDir, srcFile), srcStat)
 }
 
 func ExactCopyPath(src, dest string, entries []string) error {
@@ -83,17 +83,20 @@ func copyTimes(target string, srcStat *syscall.Stat_t) error {
 }
 
 func mirrorDirPath(srcFile, destDir string) error {
-	pathList := strings.Split(srcFile, string(os.PathSeparator))
+	pathList := strings.Split(filepath.Dir(srcFile), string(os.PathSeparator))
 	path := "/"
 	for _, p := range pathList {
-		filepath.Join(path, p)
+		path = filepath.Join(path, p)
 		dirMode, err := os.Stat(path)
 		if err != nil {
 			return err
 		}
 		dirStat := dirMode.Sys().(*syscall.Stat_t)
 		destPath := filepath.Join(destDir, path)
-		if err := os.Mkdir(destPath, dirMode.Mode()); err != nil {
+		if err := os.MkdirAll(destPath, dirMode.Mode()); err != nil {
+			if os.IsExist(err) {
+				continue
+			}
 			return err
 		}
 		if err := os.Chown(destPath, int(dirStat.Uid), int(dirStat.Gid)); err != nil {
