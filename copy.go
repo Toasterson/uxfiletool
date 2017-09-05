@@ -7,6 +7,7 @@ import (
 	"io"
 	"time"
 	"path/filepath"
+	"fmt"
 )
 
 type copyWorker struct {
@@ -17,15 +18,26 @@ type copyWorker struct {
 }
 
 func ExactCopy(srcFile, destDir string) error {
-	srcMode, err := os.Stat(srcFile)
+	destFile := filepath.Join(destDir, srcFile)
+	srcMode, err := os.Lstat(srcFile)
 	if err != nil {
 		return err
+	}
+	if srcMode.IsDir() {
+		return fmt.Errorf("ignoring directory %s", srcFile)
 	}
 	srcStat := srcMode.Sys().(*syscall.Stat_t)
 	if err := mirrorDirPath(srcFile, destDir); err != nil {
 		return err
 	}
-	return copyFileExact(srcFile, filepath.Join(destDir, srcFile), srcStat)
+	if srcMode.Mode()&os.ModeSymlink != 0 {
+		//We have a Symlink thus Create it on the Target
+		dstTarget, _ := os.Readlink(srcFile)
+		if err := os.Symlink(dstTarget, destFile); err != nil{
+			return err
+		}
+	}
+	return copyFileExact(srcFile, destFile, srcStat)
 }
 
 func ExactCopyPath(src, dest string, entries []string) error {
