@@ -101,5 +101,5 @@ func FindInPath(bin string) (bins []string) {
 			}
 		}
 	}
-	return paths
+	return
 }
