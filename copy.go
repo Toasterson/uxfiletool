@@ -8,6 +8,7 @@ import (
 	"time"
 	"path/filepath"
 	"fmt"
+	"github.com/toasterson/glog"
 )
 
 type copyWorker struct {
@@ -26,10 +27,15 @@ func ExactCopy(srcFile, destDir string) error {
 	if srcMode.IsDir() {
 		return fmt.Errorf("ignoring directory %s", srcFile)
 	}
-	srcStat := srcMode.Sys().(*syscall.Stat_t)
-	if err := mirrorDirPath(srcFile, destDir); err != nil {
-		return err
+	//Ignore Cases where we have a file directly in /bin being a link to /usr/bin
+	if strings.Count(srcFile, string(os.PathSeparator)) != 1 && !strings.HasPrefix(srcFile, string(os.PathSeparator)){
+		if err := mirrorDirPath(srcFile, destDir); err != nil {
+			return err
+		}
+	} else {
+		glog.Tracef("%s is Directly in / not making directories", srcFile)
 	}
+	srcStat := srcMode.Sys().(*syscall.Stat_t)
 	if srcMode.Mode()&os.ModeSymlink != 0 {
 		//We have a Symlink thus Create it on the Target
 		dstTarget, _ := os.Readlink(srcFile)
@@ -95,10 +101,6 @@ func copyTimes(target string, srcStat *syscall.Stat_t) error {
 }
 
 func mirrorDirPath(srcFile, destDir string) error {
-	//Ignore Cases where we have a file directly in /bin being a link to /usr/bin
-	if strings.Count(srcFile, string(os.PathSeparator)) == 1 && strings.HasPrefix(srcFile, string(os.PathSeparator)){
-		return nil
-	}
 	pathList := strings.Split(filepath.Dir(srcFile), string(os.PathSeparator))
 	path := "/"
 	for _, p := range pathList {
