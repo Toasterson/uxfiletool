@@ -28,12 +28,12 @@ func ExactCopy(srcFile, destDir string) error {
 		return fmt.Errorf("ignoring directory %s", srcFile)
 	}
 	//Ignore Cases where we have a file directly in /bin being a link to /usr/bin
-	if strings.Count(srcFile, string(os.PathSeparator)) != 1 && !strings.HasPrefix(srcFile, string(os.PathSeparator)){
+	if strings.Count(srcFile, string(os.PathSeparator)) == 1 && strings.HasPrefix(srcFile, string(os.PathSeparator)){
+		glog.Tracef("%s is Directly in / not making directories", srcFile)
+	} else {
 		if err := mirrorDirPath(srcFile, destDir); err != nil {
 			return err
 		}
-	} else {
-		glog.Tracef("%s is Directly in / not making directories", srcFile)
 	}
 	srcStat := srcMode.Sys().(*syscall.Stat_t)
 	if srcMode.Mode()&os.ModeSymlink != 0 {
