@@ -95,11 +95,15 @@ func copyTimes(target string, srcStat *syscall.Stat_t) error {
 }
 
 func mirrorDirPath(srcFile, destDir string) error {
+	//Ignore Cases where we have a file directly in /bin being a link to /usr/bin
+	if strings.Count(srcFile, string(os.PathSeparator)) == 1 && strings.HasPrefix(srcFile, string(os.PathSeparator)){
+		return nil
+	}
 	pathList := strings.Split(filepath.Dir(srcFile), string(os.PathSeparator))
 	path := "/"
 	for _, p := range pathList {
 		path = filepath.Join(path, p)
-		dirMode, err := os.Stat(path)
+		dirMode, err := os.Lstat(path)
 		if err != nil {
 			return err
 		}
