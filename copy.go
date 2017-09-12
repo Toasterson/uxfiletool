@@ -28,7 +28,7 @@ func ExactCopy(srcFile, destDir string) error {
 		return fmt.Errorf("ignoring directory %s", srcFile)
 	}
 	//Ignore Cases where we have a file directly in /bin being a link to /usr/bin
-	if strings.Count(srcFile, string(os.PathSeparator)) == 1 && strings.HasPrefix(srcFile, string(os.PathSeparator)){
+	if strings.Count(srcFile, string(os.PathSeparator)) == 1{
 		glog.Tracef("%s is Directly in / not making directories", srcFile)
 	} else {
 		if err := mirrorDirPath(srcFile, destDir); err != nil {
@@ -42,6 +42,7 @@ func ExactCopy(srcFile, destDir string) error {
 		if err := os.Symlink(dstTarget, destFile); err != nil{
 			return err
 		}
+		return nil
 	}
 	return copyFileExact(srcFile, destFile, srcStat)
 }
@@ -103,6 +104,9 @@ func copyTimes(target string, srcStat *syscall.Stat_t) error {
 func mirrorDirPath(srcFile, destDir string) error {
 	pathList := strings.Split(filepath.Dir(srcFile), string(os.PathSeparator))
 	path := "/"
+	if strings.HasPrefix(srcFile, "./"){
+		path = "./"
+	}
 	for _, p := range pathList {
 		path = filepath.Join(path, p)
 		dirMode, err := os.Lstat(path)
